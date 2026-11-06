@@ -1,0 +1,30 @@
+# Passport of the "Materials and weather" component (ARCHITECTURE.md). The code is in this folder; the surface engine (bl_surface, bl_matlib) is in the core.
+# Two entries of one step: the step-by-step build (plan:/build: steps.py — a function over the open scene, after masonry and textures, before light) and the old path (assembled in the render by an output key).
+component: materials
+version: 1
+hooks:                                 # core extension points (core/hooks.py): the core calls them without importing Materials
+  frame_materials: components.materials.bl_mat:frame_materials   # materials and weather of a scene frame from the .blend (core/outputs/bl_color)
+  weather: components.materials.mat_plan:weather_presets         # weather presets of the "frames" output (core/outputs/frames.py)
+owner: component maintainers
+bench: bench/bench.py
+steps:
+  weather:
+    section: materials
+    kind: refines
+    reads: []
+    writes: [materials]
+    gives: [weather, sky_weather]          # to the "light" step: the sky weather by preset (mat_plan.WEATHER[…]["sky"]); states, objects, rain — log statistics
+    plan: steps.py:plan_weather          # project Python: the scene's materials.yaml (none — defaults) + the weather knob (a preset) → mat_plan.resolve → plan.json
+    build: steps.py:build_weather       # Blender: bl_mat.apply_plan on the open scene (states, weather layer, water by terrain, rain, shared material)
+    keys: {weather: clear, state: null, state_world: null, state_ground: null, rain: null, closeup: null, simplify: null, reflections: null, materials: null}
+    values: {weather: [clear, rain, storm, after_rain, snow, fog, dust_storm, after_battle, mud, "catalog:core/light/far.py#WEATHER"], rain: float}
+    description: {weather: "materials preset (clear, rain, storm, after_rain, snow, fog, dust_storm, after_battle, mud — mat_plan.WEATHER) or a sky weather far.WEATHER (then the materials follow the scene description)",
+               state: "states of fighters and objects 'wet:0.5,dirt:0.2' (wet, dirt, dust, rust, wear, blood, burn, snow — mat_plan.STATES)", state_world: "states of the world", state_ground: "states of the ground",
+               rain: "rain strength 0..1 on top of the preset", closeup: "large textures up close", simplify: "a lightweight material for far objects", reflections: "water reflections"}
+    hint: "weather goes after all the geometry and material steps (masonry, textures), before light: the node's sky takes the weather from here"
+    may_read: [site]                # the water map comes from the relief.npz of the run's scene
+    profiles: {sketch: plan}        # draft — plan only: the sky weather for light, no states and no rain
+    code: [components/materials/steps.py, components/materials/mat_plan.py, components/materials/bl_mat.py, components/materials/bl_rain.py,
+          components/materials/mat_water.py, components/materials/tex_maps.py, core/surface/bl_surface.py]
+    cost: medium
+    on_fail: stop
